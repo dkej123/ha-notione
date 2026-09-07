@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from math import asin, cos, radians, sin, sqrt
 from typing import Any
 
@@ -77,3 +78,47 @@ def build_device_config_payload(
     payload = {key: current[key] for key in writable_fields if key in current}
     payload[field] = value
     return payload
+
+
+LOCATION_LOG_HEADER = (
+    "timestamp",
+    "latitude",
+    "longitude",
+    "accuracy",
+    "speed",
+    "battery",
+    "moving",
+    "device_state",
+)
+
+
+def build_location_log_row(
+    timestamp: datetime,
+    position: dict[str, Any],
+    battery: Any,
+    moving: bool,
+    device_state: str | None,
+) -> tuple[Any, ...]:
+    """Return one location-log CSV row's fields for a position sample."""
+    return (
+        timestamp.isoformat(),
+        position.get("latitude"),
+        position.get("longitude"),
+        position.get("accuracy"),
+        position.get("speed"),
+        battery,
+        moving,
+        device_state,
+    )
+
+
+def is_row_within_retention(row: list[Any], cutoff: datetime) -> bool:
+    """Return whether a location-log data row is at/after the retention cutoff.
+
+    Fails open (keeps the row) when the timestamp is missing or unparsable,
+    so a malformed line is never silently dropped — only real age does that.
+    """
+    try:
+        return datetime.fromisoformat(row[0]) >= cutoff
+    except (IndexError, TypeError, ValueError):
+        return True

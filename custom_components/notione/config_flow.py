@@ -22,9 +22,13 @@ from .const import (
     CONF_DEVICE_AUTOMATIONS,
     CONF_GARAGE_ENTITY,
     CONF_IDLE_INTERVAL,
+    CONF_LOCATION_LOG_ENABLED,
+    CONF_LOCATION_LOG_RETENTION_DAYS,
     CONF_PASSWORD,
     CONF_ZONE_ENTITY,
     DEFAULT_IDLE_INTERVAL,
+    DEFAULT_LOCATION_LOG_ENABLED,
+    DEFAULT_LOCATION_LOG_RETENTION_DAYS,
     DOMAIN,
     MAX_INTERVAL,
     MIN_INTERVAL,
@@ -107,6 +111,7 @@ class NotiOneOptionsFlow(OptionsFlow):
         interval = vol.All(
             vol.Coerce(int), vol.Range(min=MIN_INTERVAL, max=MAX_INTERVAL)
         )
+        retention_days = vol.All(vol.Coerce(int), vol.Range(min=1, max=365))
         schema = vol.Schema(
             {
                 vol.Optional(CONF_NAME, default=current_name): str,
@@ -114,6 +119,19 @@ class NotiOneOptionsFlow(OptionsFlow):
                     CONF_IDLE_INTERVAL,
                     default=options.get(CONF_IDLE_INTERVAL, DEFAULT_IDLE_INTERVAL),
                 ): interval,
+                vol.Optional(
+                    CONF_LOCATION_LOG_ENABLED,
+                    default=options.get(
+                        CONF_LOCATION_LOG_ENABLED, DEFAULT_LOCATION_LOG_ENABLED
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_LOCATION_LOG_RETENTION_DAYS,
+                    default=options.get(
+                        CONF_LOCATION_LOG_RETENTION_DAYS,
+                        DEFAULT_LOCATION_LOG_RETENTION_DAYS,
+                    ),
+                ): retention_days,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

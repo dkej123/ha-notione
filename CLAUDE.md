@@ -23,6 +23,7 @@ ha-notione/
     ├── const.py                 # endpoints, defaults, option keys
     ├── api.py                   # login, devicelist, deviceconfig, re-auth
     ├── live_protocol.py         # dependency-free LIVE protobuf codec
+    ├── location_log.py          # opt-in per-device location history CSV log
     ├── coordinator.py           # polling, LIVE, automation, config writes
     ├── config_flow.py           # setup and options flows
     ├── entity.py                # shared per-device entity bases
@@ -54,11 +55,18 @@ Constants and public client headers live in `const.py`.
    protobuf frames.
 
 `NotiOneApi` caches the access token and re-logs in near expiry or after HTTP
-401. Do not use the uncaptured refresh-token contract. Never log credentials,
-tokens, full IMEIs, raw account payloads, or user coordinates.
+401. Do not use the uncaptured refresh-token contract. Never write
+credentials, tokens, full IMEIs, raw account payloads, or coordinates to
+`_LOGGER` debug/diagnostic output. This does not apply to the dedicated
+location-log CSV files, whose entire purpose is to persist coordinates to
+disk for the user — do not add coordinates to any other logging path.
 
 Do not use `devicesamples` in the integration. Home Assistant recorder history
-is the source of entity history.
+is the source of entity *state* history (graphs/statistics). The opt-in
+location log (`location_log.py`) is a separate, deliberate mechanism: it
+persists raw coordinates for GPS devices to local CSV files under
+`/config/notione/`, purely so a stolen device can be traced after the fact.
+It exists independently of, and does not replace, recorder history.
 
 ### Device configuration writes
 

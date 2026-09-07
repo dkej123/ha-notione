@@ -26,7 +26,9 @@
         "description": "Maximum interval between REST polls when LIVE tracking is not active. The integration schedules each poll to land shortly after the next expected GPS report from the device.",
         "data": {
           "name": "Tracker name (blank = use notiOne name)",
-          "idle_interval": "Maximum polling interval (seconds)"
+          "idle_interval": "Maximum polling interval (seconds)",
+          "location_log_enabled": "Log location history to a file",
+          "location_log_retention_days": "Location log retention (days)"
         }
       },
       "device": {

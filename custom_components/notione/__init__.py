@@ -12,11 +12,16 @@ from .const import (
     CONF_EMAIL,
     CONF_DEVICE_AUTOMATIONS,
     CONF_IDLE_INTERVAL,
+    CONF_LOCATION_LOG_ENABLED,
+    CONF_LOCATION_LOG_RETENTION_DAYS,
     CONF_PASSWORD,
     DEFAULT_IDLE_INTERVAL,
+    DEFAULT_LOCATION_LOG_ENABLED,
+    DEFAULT_LOCATION_LOG_RETENTION_DAYS,
     DOMAIN,
 )
 from .coordinator import NotiOneCoordinator
+from .location_log import LocationLogger
 
 PLATFORMS: list[Platform] = [
     Platform.DEVICE_TRACKER,
@@ -40,7 +45,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: NotiOneConfigEntry) -> b
         entry.data[CONF_PASSWORD],
     )
     poll_interval = entry.options.get(CONF_IDLE_INTERVAL, DEFAULT_IDLE_INTERVAL)
-    coordinator = NotiOneCoordinator(hass, api, poll_interval)
+    location_logger = LocationLogger(
+        hass,
+        entry.options.get(CONF_LOCATION_LOG_ENABLED, DEFAULT_LOCATION_LOG_ENABLED),
+        entry.options.get(
+            CONF_LOCATION_LOG_RETENTION_DAYS, DEFAULT_LOCATION_LOG_RETENTION_DAYS
+        ),
+    )
+    coordinator = NotiOneCoordinator(hass, api, poll_interval, location_logger)
 
     await coordinator.async_config_entry_first_refresh()
     await coordinator.async_load_device_configs()

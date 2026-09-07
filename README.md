@@ -85,6 +85,8 @@ Click **Configure** on the integration at any time to adjust:
 | Moving polling interval | 10 s | How often to poll while a device reports motion. |
 | Connection entity | — | Optional `binary_sensor`/`input_boolean`/presence entity that is `on`/`home` when the device is connected (e.g. an ESPHome BLE presence sensor). Turning on forces the fast interval immediately and refreshes — no waiting for API motion. |
 | Keep fast polling after disconnect | 300 s | Grace window keeping the fast interval after the connection entity goes off, bridging the device's LTE warm-up until the API reports motion. `0` disables it. |
+| Log location history to a file | On | Appends every real position change (REST or LIVE) to `/config/notione/location_log_<deviceId>.csv`, independent of the recorder's own purge policy — useful for tracing a lost or stolen device. |
+| Location log retention (days) | 30 | Rows older than this are trimmed once a day. |
 
 The options flow then asks separately for each GPS device:
 
@@ -116,6 +118,17 @@ The access token is cached and refreshed automatically.
 
 LIVE increases locator power usage. The integration does not reconnect a closed
 or expired session automatically.
+
+### Location log
+
+When enabled (default), every real position change for a GPS device — from
+REST polling or LIVE — is appended to its own CSV file at
+`/config/notione/location_log_<deviceId>.csv`. This is independent of Home
+Assistant's recorder and its purge policy, so it keeps working even if
+recorder history is configured to expire quickly. Rows older than the
+configured retention (default 30 days) are trimmed once a day. The file is a
+plain CSV, so it's already the export: copy it off the host (e.g. `scp` over
+SSH) whenever you need it.
 
 ## Development
 

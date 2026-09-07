@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import unittest
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -16,6 +17,9 @@ _SPEC.loader.exec_module(_LOGIC)
 build_device_config_payload = _LOGIC.build_device_config_payload
 coordinates_in_zone = _LOGIC.coordinates_in_zone
 evaluate_live_automation = _LOGIC.evaluate_live_automation
+build_location_log_row = _LOGIC.build_location_log_row
+is_row_within_retention = _LOGIC.is_row_within_retention
+LOCATION_LOG_HEADER = _LOGIC.LOCATION_LOG_HEADER
 
 
 class ZoneLogicTest(unittest.TestCase):
@@ -149,6 +153,42 @@ class AutomationLogicTest(unittest.TestCase):
             armed=blocked.armed,
         )
         self.assertTrue(rearmed.armed)
+
+
+class LocationLogRowTest(unittest.TestCase):
+    def test_builds_full_row(self) -> None:
+        timestamp = datetime(2026, 9, 7, 8, 0, 0, tzinfo=timezone.utc)
+        position = {"latitude": 51.1, "longitude": 17.0, "accuracy": 5, "speed": 12}
+        row = build_location_log_row(timestamp, position, 80, True, "ONLINE")
+        self.assertEqual(len(row), len(LOCATION_LOG_HEADER))
+        self.assertEqual(
+            row,
+            (timestamp.isoformat(), 51.1, 17.0, 5, 12, 80, True, "ONLINE"),
+        )
+
+    def test_missing_position_fields_are_none(self) -> None:
+        timestamp = datetime(2026, 9, 7, 8, 0, 0, tzinfo=timezone.utc)
+        row = build_location_log_row(timestamp, {}, None, False, None)
+        self.assertEqual(row[1:5], (None, None, None, None))
+
+
+class LocationLogRetentionTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.cutoff = datetime(2026, 9, 1, tzinfo=timezone.utc)
+
+    def test_row_after_cutoff_is_kept(self) -> None:
+        row = [(self.cutoff + timedelta(days=1)).isoformat(), "51.1", "17.0"]
+        self.assertTrue(is_row_within_retention(row, self.cutoff))
+
+    def test_row_before_cutoff_is_dropped(self) -> None:
+        row = [(self.cutoff - timedelta(days=1)).isoformat(), "51.1", "17.0"]
+        self.assertFalse(is_row_within_retention(row, self.cutoff))
+
+    def test_malformed_timestamp_is_kept(self) -> None:
+        self.assertTrue(is_row_within_retention(["not-a-timestamp"], self.cutoff))
+
+    def test_empty_row_is_kept(self) -> None:
+        self.assertTrue(is_row_within_retention([], self.cutoff))
 
 
 if __name__ == "__main__":

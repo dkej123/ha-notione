@@ -28,6 +28,13 @@ CONF_IDLE_INTERVAL = "idle_interval"
 CONF_DEVICE_AUTOMATIONS = "device_automations"
 CONF_ZONE_ENTITY = "zone_entity"
 CONF_GARAGE_ENTITY = "garage_entity"
+CONF_LOCATION_LOG_ENABLED = "location_log_enabled"
+CONF_LOCATION_LOG_RETENTION_DAYS = "location_log_retention_days"
+
+DEFAULT_LOCATION_LOG_ENABLED = True
+DEFAULT_LOCATION_LOG_RETENTION_DAYS = 30
+# Directory name under hass.config.path() where per-device location logs live.
+LOCATION_LOG_DIR = "notione"
 
 STATIONARY_INTERVALS = {
     "1 h": 3600,

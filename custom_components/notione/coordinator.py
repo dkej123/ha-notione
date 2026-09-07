@@ -13,7 +13,10 @@ from typing import Any
 from aiohttp import ClientError, ClientWebSocketResponse, WSMsgType
 from homeassistant.const import STATE_ON
 from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_track_state_change_event,
+    async_track_time_interval,
+)
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import NotiOneApi, NotiOneApiError, NotiOneAuthError
@@ -31,6 +34,7 @@ from .live_protocol import (
     parse_server_message,
     reason_for_close_code,
 )
+from .location_log import LocationLogger
 from .logic import (
     build_device_config_payload,
     coordinates_in_zone,
@@ -38,6 +42,14 @@ from .logic import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+_LOCATION_LOG_TRIM_INTERVAL = timedelta(hours=24)
+
+
+def device_has_gps(device: dict) -> bool:
+    """Return whether a device is a real GPS locator (has a numeric IMEI)."""
+    return isinstance((device.get("gpsDetails") or {}).get("imei"), int)
+
 
 _WRITABLE_CONFIG_FIELDS = {
     "movePositionInterval",
@@ -130,6 +142,7 @@ class NotiOneCoordinator(DataUpdateCoordinator[dict[int, dict]]):
         hass: HomeAssistant,
         api: NotiOneApi,
         idle_interval: int,
+        location_logger: LocationLogger,
     ) -> None:
         super().__init__(
             hass,
@@ -139,6 +152,7 @@ class NotiOneCoordinator(DataUpdateCoordinator[dict[int, dict]]):
         )
         self.api = api
         self._idle_interval = idle_interval
+        self.location_logger = location_logger
         self.live_states: dict[int, LiveState] = {}
         self.device_configs: dict[int, dict[str, Any]] = {}
         self._config_locks: dict[int, asyncio.Lock] = {}
@@ -147,6 +161,11 @@ class NotiOneCoordinator(DataUpdateCoordinator[dict[int, dict]]):
         self._automation_unsub: list[Callable[[], None]] = []
         self._evaluation_lock = asyncio.Lock()
         self._shutting_down = False
+        self._automation_unsub.append(
+            async_track_time_interval(
+                hass, self._async_trim_location_logs, _LOCATION_LOG_TRIM_INTERVAL
+            )
+        )
 
     @property
     def live_active(self) -> bool:
@@ -182,8 +201,29 @@ class NotiOneCoordinator(DataUpdateCoordinator[dict[int, dict]]):
                 new_pos.get("longitude"),
             ) and new_pos.get("latitude") is not None:
                 device["_last_position_updated"] = now
+                if device_has_gps(device):
+                    self.hass.async_create_task(
+                        self.location_logger.async_log_position(
+                            device_id,
+                            new_pos,
+                            (device.get("gpsDetails") or {}).get("battery"),
+                            device_is_moving(device),
+                            device.get("deviceState"),
+                        )
+                    )
         self._set_poll_interval(self._compute_next_poll_delay(data))
         return data
+
+    async def _async_trim_location_logs(self, now: datetime | None = None) -> None:
+        """Trim every GPS device's location log to the configured retention."""
+        await asyncio.gather(
+            *(
+                self.location_logger.async_trim(device_id)
+                for device_id, device in self.data.items()
+                if device_has_gps(device)
+            ),
+            return_exceptions=True,
+        )
 
     def _compute_next_poll_delay(self, data: dict[int, dict]) -> int:
         """Compute seconds until next REST poll aligned with device reporting cadence."""
@@ -216,7 +256,7 @@ class NotiOneCoordinator(DataUpdateCoordinator[dict[int, dict]]):
         device_ids = [
             device_id
             for device_id, device in self.data.items()
-            if (device.get("gpsDetails") or {}).get("imei") is not None
+            if device_has_gps(device)
         ]
         results = await asyncio.gather(
             *(self.api.async_get_device_config(device_id) for device_id in device_ids),
@@ -438,6 +478,16 @@ class NotiOneCoordinator(DataUpdateCoordinator[dict[int, dict]]):
             sample.get("gpstime"),
         )
         self.async_set_updated_data(data)
+        if old_coords != new_coords and new_coords[0] is not None:
+            self.hass.async_create_task(
+                self.location_logger.async_log_position(
+                    device_id,
+                    position,
+                    (device.get("gpsDetails") or {}).get("battery"),
+                    device_is_moving(device),
+                    device.get("deviceState"),
+                )
+            )
 
     async def async_stop_live(self, device_id: int, reason: str = "manual") -> None:
         """Stop LIVE with the official client close code."""
