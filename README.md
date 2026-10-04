@@ -36,6 +36,8 @@ For each notiOne GPS device:
 | --- | --- | --- |
 | `device_tracker.<name>` | Device tracker | GPS position (lat/lon), `battery_level`, accuracy |
 | `switch.<name>_live_tracking` | Switch | Manual LIVE session; attributes show source, status, limit, close code, and reason |
+| `switch.<name>_location_history` | Switch | Enables the independent CSV position history for this tracker |
+| `button.<name>_download_location_history` | Button | Creates a private, five-minute CSV download link in a HA notification |
 | `binary_sensor.<name>_moving` | Binary sensor (`moving`) | `on` while the device reports motion |
 | `sensor.<name>_battery` | Sensor (battery, %) | Locator battery level |
 | `sensor.<name>_speed` | Sensor (speed, km/h) | Current speed |
@@ -85,13 +87,13 @@ Click **Configure** on the integration at any time to adjust:
 | Moving polling interval | 10 s | How often to poll while a device reports motion. |
 | Connection entity | — | Optional `binary_sensor`/`input_boolean`/presence entity that is `on`/`home` when the device is connected (e.g. an ESPHome BLE presence sensor). Turning on forces the fast interval immediately and refreshes — no waiting for API motion. |
 | Keep fast polling after disconnect | 300 s | Grace window keeping the fast interval after the connection entity goes off, bridging the device's LTE warm-up until the API reports motion. `0` disables it. |
-| Log location history to a file | On | Appends every real position change (REST or LIVE) to `/config/notione/location_log_<deviceId>.csv`, independent of the recorder's own purge policy — useful for tracing a lost or stolen device. |
 | Location log retention (days) | 30 | Rows older than this are trimmed once a day. |
 
 The options flow then asks separately for each GPS device:
 
 | Option | Description |
 | --- | --- |
+| Log location history to a file | Per tracker, on by default. Appends every real position change from REST or LIVE to that tracker's CSV file. It can also be changed with the tracker-level switch. |
 | LIVE start zone | Optional `zone.*`. Entering its configured radius starts one automatic LIVE session; leaving stops a zone-started session. |
 | Garage connection sensor | Optional `binary_sensor.*`. State `on` stops every LIVE session for that device. |
 
@@ -127,8 +129,9 @@ REST polling or LIVE — is appended to its own CSV file at
 Assistant's recorder and its purge policy, so it keeps working even if
 recorder history is configured to expire quickly. Rows older than the
 configured retention (default 30 days) are trimmed once a day. The file is a
-plain CSV, so it's already the export: copy it off the host (e.g. `scp` over
-SSH) whenever you need it.
+plain CSV. Press the tracker's **Download location history** button to receive
+a private, five-minute download link in Home Assistant, or copy the file off
+the host directly (e.g. with `scp` over SSH).
 
 ## Development
 

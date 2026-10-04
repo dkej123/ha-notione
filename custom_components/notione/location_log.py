@@ -13,7 +13,7 @@ import csv
 from datetime import datetime, timedelta, timezone
 import logging
 import os
-from typing import Any
+from typing import Any, Mapping
 
 from homeassistant.core import HomeAssistant
 
@@ -26,17 +26,40 @@ _LOGGER = logging.getLogger(__name__)
 class LocationLogger:
     """Append-only per-device CSV location log with periodic retention trim."""
 
-    def __init__(self, hass: HomeAssistant, enabled: bool, retention_days: int) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        enabled_devices: Mapping[str, bool],
+        retention_days: int,
+        default_enabled: bool = True,
+    ) -> None:
         self._hass = hass
-        self._enabled = enabled
+        self._enabled_devices = {
+            str(device_id): bool(enabled)
+            for device_id, enabled in enabled_devices.items()
+        }
+        self._default_enabled = default_enabled
         self._retention_days = retention_days
         self._locks: dict[int, asyncio.Lock] = {}
 
     def _lock(self, device_id: int) -> asyncio.Lock:
         return self._locks.setdefault(device_id, asyncio.Lock())
 
-    def _path(self, device_id: int) -> str:
+    def path(self, device_id: int) -> str:
+        """Return the CSV path for one device."""
         return self._hass.config.path(LOCATION_LOG_DIR, f"location_log_{device_id}.csv")
+
+    def is_enabled(self, device_id: int) -> bool:
+        """Return whether history logging is enabled for one device."""
+        return self._enabled_devices.get(str(device_id), self._default_enabled)
+
+    def set_enabled(self, device_id: int, enabled: bool) -> None:
+        """Update history logging for one device at runtime."""
+        self._enabled_devices[str(device_id)] = enabled
+
+    def log_exists(self, device_id: int) -> bool:
+        """Return whether one device already has a CSV log."""
+        return os.path.isfile(self.path(device_id))
 
     async def async_log_position(
         self,
@@ -47,7 +70,7 @@ class LocationLogger:
         device_state: str | None,
     ) -> None:
         """Append one position sample for a device, if logging is enabled."""
-        if not self._enabled:
+        if not self.is_enabled(device_id):
             return
         row = build_location_log_row(
             datetime.now(timezone.utc), position, battery, moving, device_state
@@ -61,7 +84,7 @@ class LocationLogger:
                 )
 
     def _write_row(self, device_id: int, row: tuple[Any, ...]) -> None:
-        path = self._path(device_id)
+        path = self.path(device_id)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         is_new = not os.path.exists(path)
         with open(path, "a", newline="", encoding="utf-8") as handle:
@@ -72,7 +95,7 @@ class LocationLogger:
 
     async def async_trim(self, device_id: int) -> None:
         """Drop rows older than the configured retention window."""
-        if not self._enabled:
+        if not self.is_enabled(device_id):
             return
         cutoff = datetime.now(timezone.utc) - timedelta(days=self._retention_days)
         async with self._lock(device_id):
@@ -86,7 +109,7 @@ class LocationLogger:
                 )
 
     def _trim_file(self, device_id: int, cutoff: datetime) -> None:
-        path = self._path(device_id)
+        path = self.path(device_id)
         if not os.path.exists(path):
             return
         with open(path, newline="", encoding="utf-8") as handle:

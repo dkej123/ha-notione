@@ -27,14 +27,14 @@
         "data": {
           "name": "Nazwa trackera (puste = nazwa z notiOne)",
           "idle_interval": "Maksymalny interwał odpytywania (sekundy)",
-          "location_log_enabled": "Zapisuj historię lokalizacji do pliku",
           "location_log_retention_days": "Retencja logu lokalizacji (dni)"
         }
       },
       "device": {
-        "title": "Automatyzacja LIVE dla {device_name}",
-        "description": "Wybierz strefę Home Assistant uruchamiającą LIVE oraz czujnik połączenia z garażem, który zatrzymuje sesję.",
+        "title": "Opcje dla {device_name}",
+        "description": "Skonfiguruj historię lokalizacji i automatyzację LIVE dla tego trackera.",
         "data": {
+          "location_log_enabled": "Zapisuj historię lokalizacji do pliku",
           "zone_entity": "Strefa uruchamiająca LIVE (opcjonalnie)",
           "garage_entity": "Czujnik połączenia z garażem (opcjonalnie)"
         }
@@ -46,7 +46,8 @@
       "moving": { "name": "W ruchu" }
     },
     "button": {
-      "refresh_config": { "name": "Odśwież konfigurację" }
+      "refresh_config": { "name": "Odśwież konfigurację" },
+      "download_location_history": { "name": "Pobierz historię lokalizacji" }
     },
     "number": {
       "speed_alarm_threshold": { "name": "Próg alarmu prędkości" },
@@ -70,6 +71,7 @@
     },
     "switch": {
       "live": { "name": "Śledzenie LIVE" },
+      "location_history": { "name": "Historia lokalizacji" },
       "speed_alarm": { "name": "Alarm prędkości" },
       "battery_alarm": { "name": "Alarm baterii" }
     }

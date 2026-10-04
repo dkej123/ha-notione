@@ -18,8 +18,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import NotiOneApi, NotiOneApiError, NotiOneAuthError
 from .const import (
-    CONF_EMAIL,
     CONF_DEVICE_AUTOMATIONS,
+    CONF_DEVICE_LOCATION_LOG,
+    CONF_EMAIL,
     CONF_GARAGE_ENTITY,
     CONF_IDLE_INTERVAL,
     CONF_LOCATION_LOG_ENABLED,
@@ -105,9 +106,7 @@ class NotiOneOptionsFlow(OptionsFlow):
             return self.async_create_entry(title="", data=self._new_options)
 
         options = self.config_entry.options
-        current_name = options.get(
-            CONF_NAME, self.config_entry.data.get(CONF_NAME, "")
-        )
+        current_name = options.get(CONF_NAME, self.config_entry.data.get(CONF_NAME, ""))
         interval = vol.All(
             vol.Coerce(int), vol.Range(min=MIN_INTERVAL, max=MAX_INTERVAL)
         )
@@ -119,12 +118,6 @@ class NotiOneOptionsFlow(OptionsFlow):
                     CONF_IDLE_INTERVAL,
                     default=options.get(CONF_IDLE_INTERVAL, DEFAULT_IDLE_INTERVAL),
                 ): interval,
-                vol.Optional(
-                    CONF_LOCATION_LOG_ENABLED,
-                    default=options.get(
-                        CONF_LOCATION_LOG_ENABLED, DEFAULT_LOCATION_LOG_ENABLED
-                    ),
-                ): bool,
                 vol.Optional(
                     CONF_LOCATION_LOG_RETENTION_DAYS,
                     default=options.get(
@@ -141,17 +134,21 @@ class NotiOneOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Configure zone and garage entities for each GPS device."""
         device_id, device_name = self._devices[self._device_index]
-        automations = dict(
-            self._new_options.get(CONF_DEVICE_AUTOMATIONS, {})
-        )
+        automations = dict(self._new_options.get(CONF_DEVICE_AUTOMATIONS, {}))
+        location_logs = dict(self._new_options.get(CONF_DEVICE_LOCATION_LOG, {}))
         current = dict(automations.get(str(device_id), {}))
         if user_input is not None:
+            device_input = dict(user_input)
+            location_logs[str(device_id)] = bool(
+                device_input.pop(CONF_LOCATION_LOG_ENABLED)
+            )
             automations[str(device_id)] = {
                 key: value
-                for key, value in user_input.items()
+                for key, value in device_input.items()
                 if value not in (None, "")
             }
             self._new_options[CONF_DEVICE_AUTOMATIONS] = automations
+            self._new_options[CONF_DEVICE_LOCATION_LOG] = location_logs
             self._device_index += 1
             if self._device_index >= len(self._devices):
                 return self.async_create_entry(title="", data=self._new_options)
@@ -165,6 +162,15 @@ class NotiOneOptionsFlow(OptionsFlow):
         )
         schema = vol.Schema(
             {
+                vol.Optional(
+                    CONF_LOCATION_LOG_ENABLED,
+                    default=location_logs.get(
+                        str(device_id),
+                        self._new_options.get(
+                            CONF_LOCATION_LOG_ENABLED, DEFAULT_LOCATION_LOG_ENABLED
+                        ),
+                    ),
+                ): bool,
                 vol.Optional(
                     CONF_ZONE_ENTITY,
                     description={"suggested_value": current.get(CONF_ZONE_ENTITY)},

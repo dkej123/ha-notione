@@ -27,14 +27,14 @@
         "data": {
           "name": "Tracker name (blank = use notiOne name)",
           "idle_interval": "Maximum polling interval (seconds)",
-          "location_log_enabled": "Log location history to a file",
           "location_log_retention_days": "Location log retention (days)"
         }
       },
       "device": {
-        "title": "LIVE automation for {device_name}",
-        "description": "Choose the Home Assistant zone that starts LIVE and the garage connection sensor that stops it.",
+        "title": "Options for {device_name}",
+        "description": "Configure location history and LIVE automation for this tracker.",
         "data": {
+          "location_log_enabled": "Log location history to a file",
           "zone_entity": "LIVE start zone (optional)",
           "garage_entity": "Garage connection sensor (optional)"
         }
@@ -48,7 +48,8 @@
       }
     },
     "button": {
-      "refresh_config": { "name": "Refresh configuration" }
+      "refresh_config": { "name": "Refresh configuration" },
+      "download_location_history": { "name": "Download location history" }
     },
     "number": {
       "speed_alarm_threshold": { "name": "Speed alarm threshold" },
@@ -72,6 +73,7 @@
     },
     "switch": {
       "live": { "name": "LIVE tracking" },
+      "location_history": { "name": "Location history" },
       "speed_alarm": { "name": "Speed alarm" },
       "battery_alarm": { "name": "Battery alarm" }
     }

@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-from homeassistant.config_entries import ConfigEntry
+from aiohttp import web
+from homeassistant.components.http import HomeAssistantView
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 
 from .api import NotiOneApi
 from .const import (
-    CONF_EMAIL,
     CONF_DEVICE_AUTOMATIONS,
+    CONF_DEVICE_LOCATION_LOG,
+    CONF_EMAIL,
     CONF_IDLE_INTERVAL,
     CONF_LOCATION_LOG_ENABLED,
     CONF_LOCATION_LOG_RETENTION_DAYS,
@@ -36,6 +40,54 @@ PLATFORMS: list[Platform] = [
 NotiOneConfigEntry = ConfigEntry[NotiOneCoordinator]
 
 
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the authenticated location-log download endpoint."""
+    hass.http.register_view(NotiOneLocationLogView(hass))
+    return True
+
+
+class NotiOneLocationLogView(HomeAssistantView):
+    """Serve a device location log as a CSV attachment."""
+
+    url = "/api/notione/location-log/{entry_id}/{device_id}"
+    name = "api:notione:location-log"
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
+
+    async def get(
+        self, request: web.Request, entry_id: str, device_id: str
+    ) -> web.StreamResponse:
+        """Download the CSV log when the entry and device are loaded."""
+        entry = self._hass.config_entries.async_get_entry(entry_id)
+        if (
+            entry is None
+            or entry.domain != DOMAIN
+            or entry.state is not ConfigEntryState.LOADED
+            or not device_id.isdigit()
+        ):
+            raise web.HTTPNotFound
+        numeric_device_id = int(device_id)
+        coordinator = entry.runtime_data
+        if numeric_device_id not in coordinator.data:
+            raise web.HTTPNotFound
+        path = coordinator.location_logger.path(numeric_device_id)
+        exists = await self._hass.async_add_executor_job(
+            coordinator.location_logger.log_exists, numeric_device_id
+        )
+        if not exists:
+            raise web.HTTPNotFound
+        return web.FileResponse(
+            path,
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="notione_location_log_{numeric_device_id}.csv"'
+                )
+            },
+        )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: NotiOneConfigEntry) -> bool:
     """Set up notiOne from a config entry."""
     session = async_get_clientsession(hass)
@@ -47,18 +99,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: NotiOneConfigEntry) -> b
     poll_interval = entry.options.get(CONF_IDLE_INTERVAL, DEFAULT_IDLE_INTERVAL)
     location_logger = LocationLogger(
         hass,
-        entry.options.get(CONF_LOCATION_LOG_ENABLED, DEFAULT_LOCATION_LOG_ENABLED),
+        entry.options.get(CONF_DEVICE_LOCATION_LOG, {}),
         entry.options.get(
             CONF_LOCATION_LOG_RETENTION_DAYS, DEFAULT_LOCATION_LOG_RETENTION_DAYS
         ),
+        entry.options.get(CONF_LOCATION_LOG_ENABLED, DEFAULT_LOCATION_LOG_ENABLED),
     )
     coordinator = NotiOneCoordinator(hass, api, poll_interval, location_logger)
 
     await coordinator.async_config_entry_first_refresh()
     await coordinator.async_load_device_configs()
-    coordinator.configure_automations(
-        entry.options.get(CONF_DEVICE_AUTOMATIONS, {})
-    )
+    coordinator.configure_automations(entry.options.get(CONF_DEVICE_AUTOMATIONS, {}))
 
     entry.runtime_data = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

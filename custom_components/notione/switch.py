@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import NotiOneConfigEntry
+from .const import CONF_DEVICE_LOCATION_LOG
 from .coordinator import LiveState
 from .device_tracker import name_override
 from .entity import NotiOneConfigEntity, NotiOneDeviceEntity
@@ -32,6 +33,7 @@ async def async_setup_entry(
         for device_id in gps_devices
         for entity in (
             NotiOneLiveSwitch(coordinator, device_id, override),
+            NotiOneLocationLogSwitch(entry, coordinator, device_id, override),
             NotiOneAlarmSwitch(
                 coordinator,
                 device_id,
@@ -86,6 +88,44 @@ class NotiOneLiveSwitch(NotiOneDeviceEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.coordinator.async_stop_live(self._device_id, "manual")
+
+
+class NotiOneLocationLogSwitch(NotiOneDeviceEntity, SwitchEntity):
+    """Control independent CSV history logging for one tracker."""
+
+    _attr_translation_key = "location_history"
+    _attr_icon = "mdi:map-marker-path"
+
+    def __init__(
+        self,
+        entry: NotiOneConfigEntry,
+        coordinator,
+        device_id: int,
+        override: str | None,
+    ) -> None:
+        super().__init__(coordinator, device_id, "location_history", override)
+        self._entry = entry
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.location_logger.is_enabled(self._device_id)
+
+    async def _async_set_enabled(self, enabled: bool) -> None:
+        if self.is_on == enabled:
+            return
+        self.coordinator.location_logger.set_enabled(self._device_id, enabled)
+        options = dict(self._entry.options)
+        devices = dict(options.get(CONF_DEVICE_LOCATION_LOG, {}))
+        devices[str(self._device_id)] = enabled
+        options[CONF_DEVICE_LOCATION_LOG] = devices
+        self.async_write_ha_state()
+        self.hass.config_entries.async_update_entry(self._entry, options=options)
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_set_enabled(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_set_enabled(False)
 
 
 class NotiOneAlarmSwitch(NotiOneConfigEntity, SwitchEntity):

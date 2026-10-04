@@ -15,8 +15,12 @@
       "geocode_place": { "default": "mdi:map-marker" },
       "device_state": { "default": "mdi:radar" }
     },
+    "button": {
+      "download_location_history": { "default": "mdi:download" }
+    },
     "switch": {
       "live": { "default": "mdi:crosshairs-gps" },
+      "location_history": { "default": "mdi:map-marker-path" },
       "speed_alarm": { "default": "mdi:speedometer" },
       "battery_alarm": { "default": "mdi:battery-alert" }
     }
